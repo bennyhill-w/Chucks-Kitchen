@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -12,6 +12,38 @@ export default function ResetPassword() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionError, setSessionError] = useState(false);
+
+  useEffect(() => {
+    // Supabase puts the token in the URL hash
+    // We need to let Supabase process it via onAuthStateChange
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setSessionReady(true);
+      } else if (event === "SIGNED_IN" && session) {
+        setSessionReady(true);
+      }
+    });
+
+    // Also check if there's already a session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setSessionReady(true);
+    });
+
+    // Check for error in URL hash
+    const hash = window.location.hash;
+    if (
+      hash.includes("error=access_denied") ||
+      hash.includes("error_code=otp_expired")
+    ) {
+      setSessionError(true);
+    }
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,12 +60,51 @@ export default function ResetPassword() {
 
     if (error) return toast.error(error.message);
     setDone(true);
+    setTimeout(() => navigate("/signin"), 2500);
   };
+
+  // Error state — link expired
+  if (sessionError)
+    return (
+      <AuthLayout>
+        <div className="text-center">
+          <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Lock className="w-10 h-10 text-red-400" />
+          </div>
+          <h2 className="text-2xl font-black text-gray-900 mb-2">
+            Link Expired
+          </h2>
+          <p className="text-gray-400 text-sm mb-8">
+            This password reset link has expired or already been used. Please
+            request a new one.
+          </p>
+          <button
+            onClick={() => navigate("/forgot-password")}
+            className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3.5 rounded-2xl transition shadow-lg shadow-amber-100"
+          >
+            Request New Link
+          </button>
+        </div>
+      </AuthLayout>
+    );
+
+  // Loading state — waiting for session
+  if (!sessionReady && !done)
+    return (
+      <AuthLayout>
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-6" />
+          <h2 className="text-xl font-black text-gray-900 mb-2">
+            Verifying your link
+          </h2>
+          <p className="text-gray-400 text-sm">Please wait a moment...</p>
+        </div>
+      </AuthLayout>
+    );
 
   return (
     <AuthLayout>
       <Toaster />
-
       {!done ? (
         <>
           <h2 className="text-2xl font-black text-gray-900 text-center mb-2">
@@ -104,7 +175,7 @@ export default function ResetPassword() {
               </div>
             </div>
 
-            {/* Password strength indicator */}
+            {/* Password strength */}
             <div className="space-y-1.5">
               {[
                 {
@@ -138,7 +209,6 @@ export default function ResetPassword() {
           </form>
         </>
       ) : (
-        /* Success state */
         <div className="text-center">
           <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle2 className="w-10 h-10 text-green-500" />
@@ -146,16 +216,10 @@ export default function ResetPassword() {
           <h2 className="text-2xl font-black text-gray-900 mb-2">
             Password Updated!
           </h2>
-          <p className="text-gray-400 text-sm mb-8">
-            Your password has been changed successfully. You can now sign in
-            with your new password.
+          <p className="text-gray-400 text-sm mb-2">
+            Your password has been changed successfully.
           </p>
-          <button
-            onClick={() => navigate("/signin")}
-            className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3.5 rounded-2xl transition shadow-lg shadow-amber-100"
-          >
-            Go to Sign In
-          </button>
+          <p className="text-gray-400 text-sm">Redirecting you to sign in...</p>
         </div>
       )}
     </AuthLayout>

@@ -23,6 +23,13 @@ export default function OrderSuccess() {
   const total = state?.total || 0;
   const shortId = orderId !== "N/A" ? orderId.slice(0, 8).toUpperCase() : "N/A";
 
+  // If no state redirect to home
+  useEffect(() => {
+    if (!state?.orderId) {
+      navigate("/home");
+    }
+  }, [state]);
+
   useEffect(() => {
     // Show loader for 2.5s then transition to success
     const t1 = setTimeout(() => setLoading(false), 2500);
