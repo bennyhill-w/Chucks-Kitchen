@@ -249,6 +249,7 @@ export default function OrderSuccess() {
       </div>
 
       <Footer />
+      <BackToTop />
     </div>
   );
 }

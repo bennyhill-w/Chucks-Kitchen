@@ -18,63 +18,33 @@ import {
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import Footer from "../components/Footer";
+import BackToTop from "../components/BackToTop";
 import toast, { Toaster } from "react-hot-toast";
-
-const heroImage = import.meta.env.VITE_FOOD_IMAGE_URL;
-
-const HERO_SLIDES = [
-  {
-    img: "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=1200&q=80",
-    title: "The Heart of Nigerian Home Cooking",
-    sub: "Jollof Rice & Fried Chicken",
-  },
-  {
-    img: "https://images.unsplash.com/photo-1598511757337-fe2cafc31ba0?w=1200&q=80",
-    title: "Rich. Bold. Authentic.",
-    sub: "Pounded Yam & Egusi Soup",
-  },
-  {
-    img: "https://images.unsplash.com/photo-1544025162-d76694265947?w=1200&q=80",
-    title: "Street Flavours. Elevated.",
-    sub: "Suya & Grilled Beef",
-  },
-  {
-    img: "https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?w=1200&q=80",
-    title: "Comfort in Every Bowl.",
-    sub: "Nigerian Pepper Soup",
-  },
-];
 
 const CATEGORIES = [
   {
     name: "Jollof Delights",
     image: "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=400",
-    icon: "🍛",
   },
   {
     name: "Swallow & Soups",
     image: "https://images.unsplash.com/photo-1598511757337-fe2cafc31ba0?w=400",
-    icon: "🥘",
   },
   {
     name: "Grills & BBQ",
     image: "https://images.unsplash.com/photo-1544025162-d76694265947?w=400",
-    icon: "🔥",
   },
   {
     name: "Sweet Treats",
     image: "https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=400",
-    icon: "🍮",
   },
   {
     name: "Soups",
     image: "https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?w=400",
-    icon: "🍲",
   },
   {
-    name: "Rice Dishes",
+    name: "Beverages",
     image: "https://images.unsplash.com/photo-1574484284002-952d92456975?w=400",
-    icon: "🍚",
   },
 ];
 
@@ -109,31 +79,56 @@ export default function Home() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [meals, setMeals] = useState([]);
+  const [heroSlides, setHeroSlides] = useState([]);
   const [cartCount, setCartCount] = useState(0);
   const [search, setSearch] = useState("");
+  const [dynamicCategories, setDynamicCategories] = useState(CATEGORIES);
   const [addingId, setAddingId] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [heroSlide, setHeroSlide] = useState(0);
   const [heroAnimating, setHeroAnimating] = useState(false);
   const [visibleSections, setVisibleSections] = useState({});
+  const [mealsLoading, setMealsLoading] = useState(true);
+  const [mealsError, setMealsError] = useState(false);
   const sectionRefs = useRef({});
 
   useEffect(() => {
     fetchMeals();
-    if (user) fetchCartCount();
+    if (user) {
+      fetchCartCount();
+      // Realtime cart subscription
+      const channel = supabase
+        .channel("cart-changes-home")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "cart_items",
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            fetchCartCount();
+          },
+        )
+        .subscribe();
+
+      return () => supabase.removeChannel(channel);
+    }
   }, [user]);
 
   // Hero auto-rotate
   useEffect(() => {
+    if (heroSlides.length === 0) return;
     const interval = setInterval(() => {
       setHeroAnimating(true);
       setTimeout(() => {
-        setHeroSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+        setHeroSlide((prev) => (prev + 1) % heroSlides.length);
         setHeroAnimating(false);
       }, 500);
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [heroSlides]);
 
   // Scroll reveal
   useEffect(() => {
@@ -161,11 +156,69 @@ export default function Home() {
   };
 
   const fetchMeals = async () => {
-    const { data } = await supabase
-      .from("meals")
-      .select("*")
-      .eq("available", true);
-    if (data) setMeals(data);
+    setMealsLoading(true);
+    setMealsError(false);
+    try {
+      const { data, error } = await supabase
+        .from("meals")
+        .select("*")
+        .eq("available", true)
+        .order("category", { ascending: true });
+
+      if (error) throw error;
+
+      if (data) {
+        setMeals(data);
+
+        // Build hero slides from Popular category first, then others
+        const popular = data.filter((m) => m.category === "Popular");
+        const others = data.filter((m) => m.category !== "Popular");
+        const slideSource = [...popular, ...others].slice(0, 5);
+
+        setHeroSlides(
+          slideSource.map((m) => ({
+            img: m.image_url,
+            title: getHeroTitle(m.category),
+            sub: m.name,
+            id: m.id,
+          })),
+        );
+
+        // Build category images from real meal data
+        const categoryImageMap = {};
+        data.forEach((m) => {
+          if (!categoryImageMap[m.category] && m.image_url) {
+            categoryImageMap[m.category] = m.image_url;
+          }
+        });
+
+        setDynamicCategories(
+          CATEGORIES.map((cat) => ({
+            ...cat,
+            image: categoryImageMap[cat.name] || cat.image,
+          })),
+        );
+      }
+    } catch (err) {
+      setMealsError(true);
+    } finally {
+      setMealsLoading(false);
+    }
+  };
+
+  const getHeroTitle = (category) => {
+    const titles = {
+      Popular: "The Heart of Nigerian Home Cooking",
+      "Jollof Delights": "Rich. Smoky. Irresistible.",
+      "Swallow & Soups": "Comfort in Every Bowl.",
+      "Grills & BBQ": "Street Flavours. Elevated.",
+      Soups: "Bold. Authentic. Nigerian.",
+      "Sweet Treats": "Sweet Endings. Every Time.",
+      Beverages: "Refresh Your Soul.",
+      "Grills & sides": "Grilled to Perfection.",
+      "Jollof Rice & Entrees": "The Classic Nigerian Plate.",
+    };
+    return titles[category] || "Authentic Nigerian Cuisine";
   };
 
   const fetchCartCount = async () => {
@@ -178,27 +231,36 @@ export default function Home() {
 
   const addToCart = async (e, meal) => {
     e.stopPropagation();
-    if (!user) return toast.error("Please sign in to add items to cart");
-    setAddingId(meal.id);
-    const { data: existing } = await supabase
-      .from("cart_items")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("meal_id", meal.id)
-      .single();
-    if (existing) {
-      await supabase
-        .from("cart_items")
-        .update({ quantity: existing.quantity + 1 })
-        .eq("id", existing.id);
-    } else {
-      await supabase
-        .from("cart_items")
-        .insert({ user_id: user.id, meal_id: meal.id, quantity: 1 });
+    if (!user) {
+      toast.error("Please sign in to add items to cart");
+      setTimeout(() => navigate("/signin"), 1500);
+      return;
     }
-    setAddingId(null);
-    toast.success(`${meal.name} added to cart!`);
-    fetchCartCount();
+    setAddingId(meal.id);
+    try {
+      const { data: existing } = await supabase
+        .from("cart_items")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("meal_id", meal.id)
+        .single();
+      if (existing) {
+        await supabase
+          .from("cart_items")
+          .update({ quantity: existing.quantity + 1 })
+          .eq("id", existing.id);
+      } else {
+        await supabase
+          .from("cart_items")
+          .insert({ user_id: user.id, meal_id: meal.id, quantity: 1 });
+      }
+      toast.success(`${meal.name} added to cart!`);
+      fetchCartCount();
+    } catch (err) {
+      toast.error("Failed to add to cart");
+    } finally {
+      setAddingId(null);
+    }
   };
 
   const handleSignOut = async () => {
@@ -206,11 +268,17 @@ export default function Home() {
     navigate("/");
   };
 
-  const filtered = meals.filter((m) =>
+  // Featured meals — Popular first, then others, max 6
+  const featuredMeals = [
+    ...meals.filter((m) => m.category === "Popular"),
+    ...meals.filter((m) => m.category !== "Popular"),
+  ].slice(0, 6);
+
+  const filtered = featuredMeals.filter((m) =>
     m.name.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const slide = HERO_SLIDES[heroSlide];
+  const slide = heroSlides[heroSlide] || null;
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -221,16 +289,8 @@ export default function Home() {
           from { opacity: 0; transform: translateY(40px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
         @keyframes slideInLeft {
           from { opacity: 0; transform: translateX(-40px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes slideInRight {
-          from { opacity: 0; transform: translateX(40px); }
           to { opacity: 1; transform: translateX(0); }
         }
         @keyframes scaleIn {
@@ -241,9 +301,12 @@ export default function Home() {
           0% { background-position: -200% 0; }
           100% { background-position: 200% 0; }
         }
+        @keyframes skeletonPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
         .reveal-up { animation: fadeUp 0.7s ease forwards; }
         .reveal-left { animation: slideInLeft 0.7s ease forwards; }
-        .reveal-right { animation: slideInRight 0.7s ease forwards; }
         .reveal-scale { animation: scaleIn 0.5s ease forwards; }
         .stagger-1 { animation-delay: 0.1s; opacity: 0; }
         .stagger-2 { animation-delay: 0.2s; opacity: 0; }
@@ -258,6 +321,11 @@ export default function Home() {
           background-size: 200% 100%;
           animation: shimmer 2s infinite;
         }
+        .skeleton {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background-size: 200% 100%;
+          animation: shimmer 1.5s infinite;
+        }
       `}</style>
 
       {/* NAVBAR */}
@@ -266,7 +334,6 @@ export default function Home() {
           Chuks <span className="text-amber-500">Kitchen</span>
         </Link>
 
-        {/* Desktop nav */}
         <div className="hidden lg:flex items-center gap-8 text-gray-600 font-medium text-sm">
           {[
             { label: "Home", to: "/home" },
@@ -363,15 +430,23 @@ export default function Home() {
       )}
 
       {/* HERO */}
-      <div className="relative w-full h-[70vh] lg:h-[85vh] overflow-hidden">
+      <div className="relative w-full h-[70vh] lg:h-[85vh] overflow-hidden bg-gray-900">
         {/* Background image */}
-        <img
-          key={heroSlide}
-          src={slide.img}
-          alt={slide.title}
-          className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ${heroAnimating ? "opacity-0 scale-110" : "opacity-100 scale-100"}`}
-        />
-        {/* Gradient */}
+        {slide ? (
+          <img
+            key={heroSlide}
+            src={slide.img}
+            alt={slide.title}
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ${heroAnimating ? "opacity-0 scale-110" : "opacity-100 scale-100"}`}
+            onError={(e) => {
+              e.target.src =
+                "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=1200&q=80";
+            }}
+          />
+        ) : (
+          <div className="absolute inset-0 skeleton" />
+        )}
+
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
@@ -380,13 +455,17 @@ export default function Home() {
           <div
             className={`transition-all duration-500 ${heroAnimating ? "opacity-0 translate-y-8" : "opacity-100 translate-y-0"}`}
           >
-            <span className="inline-flex items-center gap-2 bg-amber-500/20 backdrop-blur-sm border border-amber-400/30 text-amber-300 text-xs font-bold px-4 py-2 rounded-full mb-4">
-              <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
-              {slide.sub}
-            </span>
-            <h2 className="text-3xl lg:text-6xl font-black text-white mb-4 leading-tight max-w-2xl">
-              {slide.title}
-            </h2>
+            {slide && (
+              <>
+                <span className="inline-flex items-center gap-2 bg-amber-500/20 backdrop-blur-sm border border-amber-400/30 text-amber-300 text-xs font-bold px-4 py-2 rounded-full mb-4">
+                  <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+                  {slide.sub}
+                </span>
+                <h2 className="text-3xl lg:text-6xl font-black text-white mb-4 leading-tight max-w-2xl">
+                  {slide.title}
+                </h2>
+              </>
+            )}
             <p className="text-gray-300 text-base lg:text-lg mb-8 max-w-md">
               Handcrafted with passion, delivered with care. Fresh Nigerian
               meals at your doorstep.
@@ -410,18 +489,20 @@ export default function Home() {
         </div>
 
         {/* Slide indicators */}
-        <div className="absolute bottom-6 left-6 lg:left-20 flex gap-2">
-          {HERO_SLIDES.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setHeroSlide(i)}
-              className={`rounded-full transition-all duration-300 ${i === heroSlide ? "bg-amber-400 w-8 h-2" : "bg-white/40 w-2 h-2 hover:bg-white/60"}`}
-            />
-          ))}
-        </div>
+        {heroSlides.length > 0 && (
+          <div className="absolute bottom-6 left-6 lg:left-20 flex gap-2">
+            {heroSlides.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setHeroSlide(i)}
+                className={`rounded-full transition-all duration-300 ${i === heroSlide ? "bg-amber-400 w-8 h-2" : "bg-white/40 w-2 h-2 hover:bg-white/60"}`}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Search bar */}
-        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-full max-w-4xl px-4 lg:px-6">
+        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 lg:px-6">
           <div className="flex items-center gap-3 bg-white rounded-2xl shadow-2xl px-5 py-4 border border-gray-100">
             <Search className="text-amber-500 w-5 h-5 shrink-0" />
             <input
@@ -429,15 +510,32 @@ export default function Home() {
               placeholder="Search for your favourite Nigerian dish..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && search.trim()) {
+                  navigate(`/menu?search=${encodeURIComponent(search.trim())}`);
+                }
+              }}
               className="w-full focus:outline-none text-gray-700 text-sm lg:text-base placeholder-gray-400"
             />
             {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <>
+                <button
+                  onClick={() =>
+                    navigate(
+                      `/menu?search=${encodeURIComponent(search.trim())}`,
+                    )
+                  }
+                  className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shrink-0"
+                >
+                  Search
+                </button>
+                <button
+                  onClick={() => setSearch("")}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -447,7 +545,7 @@ export default function Home() {
       <div
         id="stats"
         ref={setRef("stats")}
-        className="bg-gray-900 px-6 lg:px-20 py-20 "
+        className="bg-gray-900 px-6 lg:px-20 py-10 mt-6"
       >
         <div className="max-w-5xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-6">
           {STATS.map((stat, i) => (
@@ -492,9 +590,9 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 lg:gap-6">
-          {CATEGORIES.map((cat, i) => (
+          {dynamicCategories.map((cat, i) => (
             <Link
-              to={`/menu?category=${cat.name}`}
+              to={`/menu?category=${encodeURIComponent(cat.name)}`}
               key={cat.name}
               className={`group relative bg-white rounded-3xl overflow-hidden shadow-sm card-hover ${visibleSections["categories"] ? `reveal-scale stagger-${i + 1}` : "opacity-0"}`}
             >
@@ -503,15 +601,16 @@ export default function Home() {
                   src={cat.image}
                   alt={cat.name}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  onError={(e) => {
+                    e.target.src =
+                      "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=400";
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-3 lg:p-4">
                   <p className="text-white font-black text-sm lg:text-base">
                     {cat.name}
                   </p>
-                </div>
-                <div className="absolute top-3 right-3 w-8 h-8 bg-white/90 rounded-xl flex items-center justify-center text-base shadow-sm">
-                  {cat.icon}
                 </div>
               </div>
             </Link>
@@ -542,49 +641,126 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 lg:gap-6">
-            {filtered.slice(0, 6).map((meal, i) => (
-              <div
-                key={meal.id}
-                onClick={() => navigate(`/meal/${meal.id}`)}
-                className={`group bg-white rounded-3xl overflow-hidden shadow-sm card-hover cursor-pointer ${visibleSections["specials"] ? `reveal-up stagger-${(i % 3) + 1}` : "opacity-0"}`}
+          {/* Error state */}
+          {mealsError && (
+            <div className="text-center py-16 bg-white rounded-3xl">
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <X className="w-8 h-8 text-red-400" />
+              </div>
+              <h3 className="text-lg font-black text-gray-800 mb-2">
+                Failed to load meals
+              </h3>
+              <p className="text-gray-400 text-sm mb-6">
+                Something went wrong. Please try again.
+              </p>
+              <button
+                onClick={fetchMeals}
+                className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-3 rounded-xl transition"
               >
-                <div className="relative h-32 lg:h-48 overflow-hidden">
-                  <img
-                    src={meal.image_url}
-                    alt={meal.name}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  {i === 0 && (
-                    <span className="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
-                      <Flame className="w-3 h-3" /> Hot
-                    </span>
-                  )}
-                </div>
-                <div className="p-3 lg:p-4">
-                  <h4 className="font-black text-gray-900 text-sm lg:text-base mb-1 line-clamp-1 group-hover:text-amber-600 transition-colors">
-                    {meal.name}
-                  </h4>
-                  <p className="text-gray-400 text-xs mb-3 line-clamp-2 hidden lg:block">
-                    {meal.description}
-                  </p>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-amber-600 font-black text-sm lg:text-lg">
-                      ₦{meal.price.toLocaleString()}
-                    </span>
-                    <button
-                      onClick={(e) => addToCart(e, meal)}
-                      disabled={addingId === meal.id}
-                      className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold px-3 lg:px-4 py-1.5 lg:py-2 rounded-xl text-xs lg:text-sm transition-all duration-200 disabled:opacity-50 shadow-lg shadow-amber-100"
-                    >
-                      {addingId === meal.id ? "..." : "Add"}
-                    </button>
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Skeleton loading */}
+          {mealsLoading && !mealsError && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 lg:gap-6">
+              {[...Array(6)].map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-white rounded-3xl overflow-hidden shadow-sm"
+                >
+                  <div className="skeleton h-32 lg:h-48" />
+                  <div className="p-4 space-y-3">
+                    <div className="skeleton h-4 rounded-full w-3/4" />
+                    <div className="skeleton h-3 rounded-full w-1/2" />
+                    <div className="flex justify-between items-center">
+                      <div className="skeleton h-5 rounded-full w-16" />
+                      <div className="skeleton h-8 w-16 rounded-xl" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
+
+          {/* Actual meals */}
+          {!mealsLoading && !mealsError && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 lg:gap-6">
+              {filtered.length === 0 ? (
+                <div className="col-span-2 md:col-span-3 text-center py-16 bg-white rounded-3xl">
+                  <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-black text-gray-700 mb-2">
+                    No meals found
+                  </h3>
+                  <p className="text-gray-400 text-sm mb-4">
+                    Try a different search term
+                  </p>
+                  <button
+                    onClick={() => setSearch("")}
+                    className="bg-amber-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm hover:bg-amber-600 transition"
+                  >
+                    Clear Search
+                  </button>
+                </div>
+              ) : (
+                filtered.map((meal, i) => (
+                  <div
+                    key={meal.id}
+                    onClick={() => navigate(`/meal/${meal.id}`)}
+                    className={`group bg-white rounded-3xl overflow-hidden shadow-sm card-hover cursor-pointer ${visibleSections["specials"] ? `reveal-up stagger-${(i % 3) + 1}` : "opacity-0"}`}
+                  >
+                    <div className="relative h-32 lg:h-48 overflow-hidden">
+                      <img
+                        src={meal.image_url}
+                        alt={meal.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        onError={(e) => {
+                          e.target.src =
+                            "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=400";
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      {i === 0 && (
+                        <span className="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                          <Flame className="w-3 h-3" /> Hot
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-3 lg:p-4">
+                      <h4 className="font-black text-gray-900 text-sm lg:text-base mb-1 line-clamp-1 group-hover:text-amber-600 transition-colors">
+                        {meal.name}
+                      </h4>
+                      <p className="text-gray-400 text-xs mb-3 line-clamp-2 hidden lg:block">
+                        {meal.description}
+                      </p>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-amber-600 font-black text-sm lg:text-lg">
+                          ₦{meal.price.toLocaleString()}
+                        </span>
+                        <button
+                          onClick={(e) => addToCart(e, meal)}
+                          disabled={addingId === meal.id}
+                          className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold px-3 lg:px-4 py-1.5 lg:py-2 rounded-xl text-xs lg:text-sm transition-all duration-200 disabled:opacity-50 shadow-lg shadow-amber-100"
+                        >
+                          {addingId === meal.id ? (
+                            <span className="flex items-center gap-1">
+                              <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <span className="hidden lg:inline">
+                                Adding...
+                              </span>
+                            </span>
+                          ) : (
+                            "Add"
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -605,7 +781,6 @@ export default function Home() {
           </h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-          {/* Connector line */}
           <div className="hidden md:block absolute top-10 left-1/3 right-1/3 h-0.5 bg-amber-200 z-0" />
           {[
             {
@@ -654,12 +829,16 @@ export default function Home() {
       <div
         id="promo"
         ref={setRef("promo")}
-        className="relative w-full h-64 lg:h-150 overflow-hidden"
+        className="relative w-full h-64 lg:h-80 overflow-hidden"
       >
         <img
           src="https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=1200&q=80"
           alt="New menu"
           className="w-full h-full object-cover"
+          onError={(e) => {
+            e.target.src =
+              "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=1200&q=80";
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-transparent" />
         <div
@@ -788,6 +967,7 @@ export default function Home() {
       </div>
 
       <Footer />
+      <BackToTop />
     </div>
   );
 }

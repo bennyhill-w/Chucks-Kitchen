@@ -20,6 +20,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import BackToTop from "../components/BackToTop";
 
 const STATUS_CONFIG = {
   pending: {
@@ -179,10 +180,35 @@ export default function Orders() {
 
   if (loading)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-400 text-sm">Loading your orders...</p>
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <Navbar />
+        <div className="max-w-6xl mx-auto w-full px-4 lg:px-6 py-8 flex-1">
+          <div className="h-8 w-40 bg-gray-200 rounded-full animate-pulse mb-2" />
+          <div className="h-4 w-56 bg-gray-100 rounded-full animate-pulse mb-8" />
+          <div className="grid grid-cols-3 gap-4 mb-8">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="bg-white rounded-3xl p-5 shadow-sm">
+                <div className="w-9 h-9 bg-gray-200 rounded-xl animate-pulse mb-3" />
+                <div className="h-7 w-16 bg-gray-200 rounded-full animate-pulse mb-1" />
+                <div className="h-3 w-24 bg-gray-100 rounded-full animate-pulse" />
+              </div>
+            ))}
+          </div>
+          <div className="space-y-3">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="bg-white rounded-3xl p-6 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gray-200 rounded-2xl animate-pulse shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-40 bg-gray-200 rounded-full animate-pulse" />
+                    <div className="h-3 w-28 bg-gray-100 rounded-full animate-pulse" />
+                    <div className="h-4 w-20 bg-gray-200 rounded-full animate-pulse" />
+                  </div>
+                  <div className="h-8 w-24 bg-gray-100 rounded-full animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -579,6 +605,7 @@ export default function Orders() {
       </div>
 
       <Footer />
+      <BackToTop />
     </div>
   );
 }

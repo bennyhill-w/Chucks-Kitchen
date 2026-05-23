@@ -8,12 +8,14 @@ import {
   ShoppingBag,
   LogOut,
   Camera,
+  CheckCircle2,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import BackToTop from "../components/BackToTop";
 import toast, { Toaster } from "react-hot-toast";
 
 export default function Profile() {
@@ -21,6 +23,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [orderCount, setOrderCount] = useState(0);
   const [totalSpent, setTotalSpent] = useState(0);
   const [form, setForm] = useState({
@@ -70,7 +73,9 @@ export default function Profile() {
       .upsert({ id: user.id, ...form });
     setSaving(false);
     if (error) return toast.error("Failed to save profile");
+    setSaved(true);
     toast.success("Profile updated!");
+    setTimeout(() => setSaved(false), 3000);
   };
 
   const handleSignOut = async () => {
@@ -89,10 +94,41 @@ export default function Profile() {
 
   if (loading)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-400 text-sm">Loading your profile...</p>
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <Navbar />
+        <div className="max-w-4xl mx-auto w-full px-4 lg:px-6 py-8 flex-1">
+          <div className="h-8 w-36 bg-gray-200 rounded-full animate-pulse mb-2" />
+          <div className="h-4 w-52 bg-gray-100 rounded-full animate-pulse mb-8" />
+          <div className="flex flex-col lg:flex-row gap-8">
+            <div className="lg:w-72 space-y-4">
+              <div className="bg-white rounded-3xl p-6 shadow-sm text-center">
+                <div className="w-24 h-24 bg-gray-200 rounded-full animate-pulse mx-auto mb-4" />
+                <div className="h-5 w-32 bg-gray-200 rounded-full animate-pulse mx-auto mb-2" />
+                <div className="h-4 w-40 bg-gray-100 rounded-full animate-pulse mx-auto" />
+              </div>
+              <div className="bg-white rounded-3xl p-6 shadow-sm space-y-4">
+                {[...Array(2)].map((_, i) => (
+                  <div key={i} className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-gray-100 rounded-xl animate-pulse" />
+                      <div className="h-4 w-24 bg-gray-100 rounded-full animate-pulse" />
+                    </div>
+                    <div className="h-5 w-12 bg-gray-200 rounded-full animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex-1 bg-white rounded-3xl p-8 shadow-sm space-y-5">
+              <div className="h-6 w-44 bg-gray-200 rounded-full animate-pulse mb-6" />
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-4 w-24 bg-gray-100 rounded-full animate-pulse" />
+                  <div className="h-12 bg-gray-100 rounded-2xl animate-pulse" />
+                </div>
+              ))}
+              <div className="h-12 bg-gray-200 rounded-2xl animate-pulse mt-4" />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -276,10 +312,28 @@ export default function Profile() {
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-amber-100 disabled:opacity-60"
+                  className={`w-full flex items-center justify-center gap-2 font-bold py-4 rounded-2xl transition-all shadow-lg disabled:opacity-60 active:scale-[0.98] ${
+                    saved
+                      ? "bg-green-500 hover:bg-green-600 shadow-green-100 text-white"
+                      : "bg-amber-500 hover:bg-amber-600 shadow-amber-100 text-white"
+                  }`}
                 >
-                  <Save className="w-5 h-5" />
-                  {saving ? "Saving..." : "Save Changes"}
+                  {saving ? (
+                    <>
+                      <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : saved ? (
+                    <>
+                      <CheckCircle2 className="w-5 h-5" />
+                      Saved!
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-5 h-5" />
+                      Save Changes
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -315,6 +369,7 @@ export default function Profile() {
       </div>
 
       <Footer />
+      <BackToTop />
     </div>
   );
 }

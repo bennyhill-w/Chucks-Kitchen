@@ -9,8 +9,11 @@ import {
   ChefHat,
   Zap,
   Leaf,
+  Menu,
+  X,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 
 const CAROUSEL_SLIDES = [
@@ -53,10 +56,26 @@ const FOOD_2 =
 
 export default function Landing() {
   const { user } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [current, setCurrent] = useState(0);
   const [animating, setAnimating] = useState(false);
   const [direction, setDirection] = useState("right");
   const [visible, setVisible] = useState(false);
+  const [featuredMeals, setFeaturedMeals] = useState([]);
+
+  useEffect(() => {
+    fetchFeaturedMeals();
+  }, []);
+
+  const fetchFeaturedMeals = async () => {
+    const { data } = await supabase
+      .from("meals")
+      .select("*")
+      .eq("available", true)
+      .limit(3);
+
+    if (data) setFeaturedMeals(data);
+  };
 
   // Page entrance animation
   useEffect(() => {
@@ -166,12 +185,79 @@ export default function Landing() {
           )}
           <Link
             to={user ? "/home" : "/signup"}
-            className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all duration-200 shadow-lg shadow-amber-100"
+            className="hidden sm:block bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all duration-200 shadow-lg shadow-amber-100"
           >
             {user ? "Go to App" : "Get Started"}
           </Link>
+
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="sm:hidden p-2 hover:bg-gray-100 rounded-xl transition-colors"
+          >
+            {mobileMenuOpen ? (
+              <X className="w-5 h-5 text-gray-700" />
+            ) : (
+              <Menu className="w-5 h-5 text-gray-700" />
+            )}
+          </button>
         </div>
       </nav>
+
+      {/* Mobile menu dropdown */}
+      {mobileMenuOpen && (
+        <div className="sm:hidden fixed top-[73px] left-0 right-0 bg-white border-b border-gray-100 shadow-xl z-40 px-5 py-4 space-y-1">
+          <a
+            href="#about"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center gap-3 text-gray-700 font-semibold py-3 px-3 rounded-xl hover:bg-amber-50 hover:text-amber-600 transition-all"
+          >
+            About Us
+          </a>
+          <a
+            href="#menu"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center gap-3 text-gray-700 font-semibold py-3 px-3 rounded-xl hover:bg-amber-50 hover:text-amber-600 transition-all"
+          >
+            Our Menu
+          </a>
+          <a
+            href="#contact"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center gap-3 text-gray-700 font-semibold py-3 px-3 rounded-xl hover:bg-amber-50 hover:text-amber-600 transition-all"
+          >
+            Contact
+          </a>
+          <div className="pt-2 border-t border-gray-100 space-y-2">
+            {user ? (
+              <Link
+                to="/home"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl text-center transition text-sm"
+              >
+                Go to App
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/signin"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block w-full border-2 border-gray-200 text-gray-700 font-bold py-3 rounded-xl text-center transition text-sm hover:border-amber-400 hover:text-amber-600"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/signup"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl text-center transition text-sm"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* HERO SECTION */}
       <section className="flex flex-col lg:flex-row min-h-[calc(100vh-73px)]">
@@ -415,64 +501,71 @@ export default function Landing() {
               </h3>
             </div>
             <Link
-              to="/menu"
+              to={user ? "/menu" : "/signup"}
               className="flex items-center gap-1 text-amber-500 font-bold text-sm hover:underline group"
             >
               See all{" "}
               <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            {[
-              {
-                name: "Jollof Rice & Chicken",
-                price: "₦3,500",
-                tag: "Best Seller 🔥",
-                img: CAROUSEL_SLIDES[0].img,
-              },
-              {
-                name: "Egusi Soup & Eba",
-                price: "₦3,800",
-                tag: "Chef's Pick 👨‍🍳",
-                img: CAROUSEL_SLIDES[1].img,
-              },
-              {
-                name: "Suya & Grilled Beef",
-                price: "₦4,000",
-                tag: "Street Classic 🥩",
-                img: CAROUSEL_SLIDES[4].img,
-              },
-            ].map((dish) => (
-              <Link
-                to="/signup"
-                key={dish.name}
-                className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
-              >
-                <div className="relative h-48 overflow-hidden">
-                  <img
-                    src={dish.img}
-                    alt={dish.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <span className="absolute top-3 left-3 bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                    {dish.tag}
-                  </span>
-                </div>
-                <div className="p-5 flex items-center justify-between">
-                  <div>
-                    <h4 className="font-black text-gray-900 text-base">
-                      {dish.name}
-                    </h4>
-                    <p className="text-amber-500 font-bold text-sm mt-0.5">
-                      {dish.price}
-                    </p>
+            {featuredMeals.length > 0
+              ? featuredMeals.map((meal, i) => (
+                  <Link
+                    to={user ? `/meal/${meal.id}` : "/signup"}
+                    key={meal.id}
+                    className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                  >
+                    <div className="relative h-48 overflow-hidden">
+                      <img
+                        src={meal.image_url}
+                        alt={meal.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      {i === 0 && (
+                        <span className="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                          Best Seller 🔥
+                        </span>
+                      )}
+                      {i === 1 && (
+                        <span className="absolute top-3 left-3 bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                          Chef's Pick
+                        </span>
+                      )}
+                      {i === 2 && (
+                        <span className="absolute top-3 left-3 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                          Fan Favourite
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-5 flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-black text-gray-900 text-base truncate">
+                          {meal.name}
+                        </h4>
+                        <p className="text-amber-500 font-bold text-sm mt-0.5">
+                          ₦{meal.price.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="w-9 h-9 bg-amber-50 group-hover:bg-amber-500 border-2 border-amber-200 group-hover:border-amber-500 rounded-xl flex items-center justify-center text-amber-500 group-hover:text-white transition-all duration-300 shrink-0 ml-3">
+                        <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+                      </div>
+                    </div>
+                  </Link>
+                ))
+              : [1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="bg-white rounded-3xl overflow-hidden shadow-sm animate-pulse"
+                  >
+                    <div className="h-48 bg-gray-200" />
+                    <div className="p-5 space-y-3">
+                      <div className="h-4 bg-gray-200 rounded-full w-3/4" />
+                      <div className="h-3 bg-gray-200 rounded-full w-1/3" />
+                    </div>
                   </div>
-                  <div className="w-9 h-9 bg-amber-50 group-hover:bg-amber-500 border-2 border-amber-200 group-hover:border-amber-500 rounded-xl flex items-center justify-center text-amber-500 group-hover:text-white transition-all duration-300">
-                    <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                </div>
-              </Link>
-            ))}
+                ))}
           </div>
         </div>
       </section>
@@ -571,34 +664,47 @@ export default function Landing() {
             <ul className="space-y-2 text-gray-500 text-sm">
               <li>
                 <Link
-                  to="/home"
-                  className="hover:text-amber-400 transition-colors"
+                  to="/"
+                  className="hover:text-amber-400 transition-colors flex items-center gap-2 group"
                 >
+                  <span className="w-1 h-1 bg-gray-600 group-hover:bg-amber-400 rounded-full transition-colors" />
                   Home
                 </Link>
               </li>
               <li>
                 <Link
-                  to="/menu"
-                  className="hover:text-amber-400 transition-colors"
+                  to={user ? "/menu" : "/signup"}
+                  className="hover:text-amber-400 transition-colors flex items-center gap-2 group"
                 >
-                  Explore
+                  <span className="w-1 h-1 bg-gray-600 group-hover:bg-amber-400 rounded-full transition-colors" />
+                  Explore Menu
                 </Link>
               </li>
               <li>
                 <Link
-                  to="/orders"
-                  className="hover:text-amber-400 transition-colors"
+                  to={user ? "/orders" : "/signup"}
+                  className="hover:text-amber-400 transition-colors flex items-center gap-2 group"
                 >
+                  <span className="w-1 h-1 bg-gray-600 group-hover:bg-amber-400 rounded-full transition-colors" />
                   My Orders
                 </Link>
               </li>
               <li>
                 <Link
-                  to="/profile"
-                  className="hover:text-amber-400 transition-colors"
+                  to={user ? "/profile" : "/signup"}
+                  className="hover:text-amber-400 transition-colors flex items-center gap-2 group"
                 >
+                  <span className="w-1 h-1 bg-gray-600 group-hover:bg-amber-400 rounded-full transition-colors" />
                   Account
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to={user ? "/signin" : "/signup"}
+                  className="hover:text-amber-400 transition-colors flex items-center gap-2 group"
+                >
+                  <span className="w-1 h-1 bg-gray-600 group-hover:bg-amber-400 rounded-full transition-colors" />
+                  {user ? "Sign Out" : "Sign Up"}
                 </Link>
               </li>
             </ul>

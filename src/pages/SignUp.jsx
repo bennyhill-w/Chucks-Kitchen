@@ -35,7 +35,7 @@ export default function SignUp() {
     setLoading(false);
 
     if (error) return toast.error(error.message);
-    toast.success("Account created! Check your email to confirm.");
+    toast.success("Account created! Check your email to confirm your account.");
     navigate("/signin");
   };
 

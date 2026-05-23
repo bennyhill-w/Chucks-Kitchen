@@ -16,6 +16,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import BackToTop from "../components/BackToTop";
 import toast, { Toaster } from "react-hot-toast";
 
 const STEPS = ["Delivery", "Payment", "Confirm"];
@@ -44,8 +45,10 @@ export default function Checkout() {
   });
 
   useEffect(() => {
-    if (user) fetchCart();
-    else {
+    if (user) {
+      fetchCart();
+      fetchProfile();
+    } else {
       setLoading(false);
       navigate("/signin");
     }
@@ -56,8 +59,27 @@ export default function Checkout() {
       .from("cart_items")
       .select("*, meals(*)")
       .eq("user_id", user.id);
-    setCartItems(data || []);
+    if (!data || data.length === 0) {
+      navigate("/cart");
+      return;
+    }
+    setCartItems(data);
     setLoading(false);
+  };
+
+  const fetchProfile = async () => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+    if (data) {
+      setDelivery((prev) => ({
+        ...prev,
+        address: data.address || prev.address,
+        phone: data.phone || prev.phone,
+      }));
+    }
   };
 
   const subtotal = cartItems.reduce(
@@ -682,6 +704,7 @@ export default function Checkout() {
       </div>
 
       <Footer />
+      <BackToTop />
     </div>
   );
 }
