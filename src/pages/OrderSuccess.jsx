@@ -4,11 +4,14 @@ import {
   CheckCircle2,
   Package,
   MapPin,
-  Phone,
   Receipt,
   HelpCircle,
   Home,
   ArrowRight,
+  ShoppingBag,
+  Flame,
+  Truck,
+  Gift,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -19,26 +22,26 @@ export default function OrderSuccess() {
   const [loading, setLoading] = useState(true);
   const [showContent, setShowContent] = useState(false);
 
-  const orderId = state?.orderId || "N/A";
+  const orderId = state?.orderId;
   const total = state?.total || 0;
-  const shortId = orderId !== "N/A" ? orderId.slice(0, 8).toUpperCase() : "N/A";
+  const shortId = orderId ? orderId.slice(0, 8).toUpperCase() : null;
 
-  // If no state redirect to home
   useEffect(() => {
-    if (!state?.orderId) {
-      navigate("/home");
+    // If no order data redirect to home
+    if (!orderId) {
+      navigate("/home", { replace: true });
+      return;
     }
-  }, [state]);
-
-  useEffect(() => {
-    // Show loader for 2.5s then transition to success
     const t1 = setTimeout(() => setLoading(false), 2500);
     const t2 = setTimeout(() => setShowContent(true), 2800);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, []);
+  }, [orderId, navigate]);
+
+  // While redirecting show nothing
+  if (!orderId) return null;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -47,13 +50,10 @@ export default function OrderSuccess() {
       <div className="flex-1 flex items-center justify-center px-6 py-16">
         {/* LOADER */}
         {loading && (
-          <div className="flex flex-col items-center gap-8 animate-pulse-slow">
-            {/* Animated logo loader */}
+          <div className="flex flex-col items-center gap-8">
             <div className="relative w-32 h-32">
-              {/* Outer spinning ring */}
               <div className="absolute inset-0 rounded-full border-4 border-amber-100" />
               <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-amber-500 animate-spin" />
-              {/* Middle ring */}
               <div
                 className="absolute inset-3 rounded-full border-4 border-transparent border-t-amber-300 animate-spin"
                 style={{
@@ -61,14 +61,12 @@ export default function OrderSuccess() {
                   animationDirection: "reverse",
                 }}
               />
-              {/* Center dot */}
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center shadow-lg shadow-amber-200 animate-bounce">
-                  <span className="text-white text-lg">🍽️</span>
+                  <ShoppingBag className="w-5 h-5 text-white" />
                 </div>
               </div>
             </div>
-
             <div className="text-center">
               <h2 className="text-2xl font-black text-gray-800 mb-2">
                 Processing your order
@@ -77,14 +75,12 @@ export default function OrderSuccess() {
                 Please wait while we confirm your payment...
               </p>
             </div>
-
-            {/* Loading steps */}
             <div className="flex flex-col gap-3 w-72">
               {[
                 { label: "Verifying payment", delay: 0 },
                 { label: "Confirming order", delay: 800 },
                 { label: "Notifying restaurant", delay: 1600 },
-              ].map((step, i) => (
+              ].map((step) => (
                 <LoadingStep
                   key={step.label}
                   label={step.label}
@@ -97,16 +93,11 @@ export default function OrderSuccess() {
 
         {/* SUCCESS */}
         {!loading && showContent && (
-          <div
-            className={`w-full max-w-lg transition-all duration-700 ${showContent ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
-          >
-            {/* Success card */}
+          <div className="w-full max-w-lg">
             <div className="bg-white rounded-3xl shadow-sm overflow-hidden">
-              {/* Top green band */}
+              {/* Green top band */}
               <div className="bg-gradient-to-r from-green-400 to-emerald-500 px-8 pt-10 pb-16 text-center relative">
                 <div className="absolute bottom-0 left-0 right-0 h-8 bg-white rounded-t-3xl" />
-
-                {/* Check icon */}
                 <div className="relative mb-4 inline-block">
                   <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-xl mx-auto">
                     <CheckCircle2
@@ -114,10 +105,8 @@ export default function OrderSuccess() {
                       strokeWidth={2}
                     />
                   </div>
-                  {/* Pulse rings */}
                   <div className="absolute inset-0 rounded-full border-4 border-white/40 animate-ping" />
                 </div>
-
                 <h2 className="text-2xl font-black text-white mb-1">
                   Order Placed Successfully!
                 </h2>
@@ -148,8 +137,8 @@ export default function OrderSuccess() {
                       <Package className="w-4 h-4 text-amber-400" />
                       <span>Status</span>
                     </div>
-                    <span className="font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full text-xs">
-                      🔥 Preparing
+                    <span className="inline-flex items-center gap-1 font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full text-xs">
+                      <Flame className="w-3.5 h-3.5" /> Preparing
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
@@ -178,27 +167,37 @@ export default function OrderSuccess() {
                     Delivery Progress
                   </p>
                   <div className="flex items-center justify-between relative">
-                    {/* Progress line */}
                     <div className="absolute top-4 left-0 right-0 h-0.5 bg-gray-100 z-0">
                       <div className="h-full bg-amber-400 w-1/4 transition-all duration-1000" />
                     </div>
-
                     {[
-                      { label: "Confirmed", icon: "✅", done: true },
-                      { label: "Preparing", icon: "🍳", done: false },
-                      { label: "On the way", icon: "🛵", done: false },
-                      { label: "Delivered", icon: "🎉", done: false },
-                    ].map((s, i) => (
+                      {
+                        label: "Confirmed",
+                        icon: <CheckCircle2 className="w-4 h-4 text-grey" />,
+                        done: true,
+                      },
+                      {
+                        label: "Preparing",
+                        icon: <Flame className="w-4 h-4 text-grey" />,
+                        done: false,
+                      },
+                      {
+                        label: "On the way",
+                        icon: <Truck className="w-4 h-4 text-grey" />,
+                        done: false,
+                      },
+                      {
+                        label: "Delivered",
+                        icon: <Gift className="w-4 h-4 text-grey" />,
+                        done: false,
+                      },
+                    ].map((s) => (
                       <div
                         key={s.label}
                         className="flex flex-col items-center gap-2 z-10"
                       >
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm ${
-                            s.done
-                              ? "bg-amber-500"
-                              : "bg-white border-2 border-gray-200"
-                          }`}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm ${s.done ? "bg-amber-500" : "bg-white border-2 border-gray-200"}`}
                         >
                           {s.icon}
                         </div>
@@ -212,7 +211,7 @@ export default function OrderSuccess() {
                   </div>
                 </div>
 
-                {/* Action buttons */}
+                {/* Actions */}
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => navigate("/orders")}
@@ -223,11 +222,6 @@ export default function OrderSuccess() {
                       <span>Track Order</span>
                     </div>
                     <ArrowRight className="w-5 h-5" />
-                  </button>
-
-                  <button className="w-full flex items-center justify-center gap-2 border-2 border-gray-100 bg-gray-50 hover:bg-gray-100 text-gray-600 font-bold py-3.5 px-6 rounded-2xl transition">
-                    <Receipt className="w-4 h-4" />
-                    Generate Receipt
                   </button>
 
                   <Link
@@ -256,12 +250,10 @@ export default function OrderSuccess() {
       </div>
 
       <Footer />
-      <BackToTop />
     </div>
   );
 }
 
-// Loading step component with staggered animation
 function LoadingStep({ label, delay }) {
   const [active, setActive] = useState(false);
   const [done, setDone] = useState(false);
@@ -280,13 +272,7 @@ function LoadingStep({ label, delay }) {
       className={`flex items-center gap-3 transition-all duration-500 ${active ? "opacity-100" : "opacity-30"}`}
     >
       <div
-        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 ${
-          done
-            ? "bg-green-500"
-            : active
-              ? "bg-amber-500 animate-pulse"
-              : "bg-gray-200"
-        }`}
+        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 ${done ? "bg-green-500" : active ? "bg-amber-500 animate-pulse" : "bg-gray-200"}`}
       >
         {done ? (
           <CheckCircle2 className="w-3.5 h-3.5 text-white" />
@@ -295,9 +281,7 @@ function LoadingStep({ label, delay }) {
         ) : null}
       </div>
       <span
-        className={`text-sm font-semibold transition-colors duration-300 ${
-          done ? "text-green-600" : active ? "text-amber-600" : "text-gray-300"
-        }`}
+        className={`text-sm font-semibold transition-colors duration-300 ${done ? "text-green-600" : active ? "text-amber-600" : "text-gray-300"}`}
       >
         {label}
       </span>
