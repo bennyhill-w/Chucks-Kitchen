@@ -17,52 +17,9 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import BackToTop from "../components/BackToTop";
 import toast, { Toaster } from "react-hot-toast";
 
 const STEPS = ["Delivery", "Payment", "Confirm"];
-
-function PayButton({ amount, email, onSuccess, onClose, disabled }) {
-  const config = {
-    reference: `ck_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-    email,
-    amount: amount * 100, // Paystack uses kobo
-    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
-    currency: "NGN",
-    metadata: {
-      custom_fields: [
-        {
-          display_name: "App",
-          variable_name: "app",
-          value: "Chuks Kitchen",
-        },
-      ],
-    },
-  };
-
-  const initializePayment = usePaystackPayment(config);
-
-  return (
-    <button
-      onClick={() =>
-        initializePayment(
-          (reference) => onSuccess(reference?.reference),
-          onClose,
-        )
-      }
-      disabled={disabled}
-      className="flex-1 flex items-center justify-between bg-green-500 hover:bg-green-600 active:scale-[0.98] text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg shadow-green-100 disabled:opacity-60"
-    >
-      <div className="flex items-center gap-2">
-        <Lock className="w-4 h-4" />
-        <span>
-          {disabled ? "Processing..." : `Pay ₦${amount.toLocaleString()}`}
-        </span>
-      </div>
-      <ChevronRight className="w-5 h-5" />
-    </button>
-  );
-}
 
 export default function Checkout() {
   const { user } = useAuth();
@@ -72,20 +29,12 @@ export default function Checkout() {
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [payMethod, setPayMethod] = useState("card");
-  const [saveCard, setSaveCard] = useState(false);
-  const [paymentVerified, setPaymentVerified] = useState(false);
 
   const [delivery, setDelivery] = useState({
     address: "123 Main Street, Victoria Island, Lagos",
     time: "ASAP (30-25 mins)",
     instructions: "",
     phone: "+234 801 234 5678",
-  });
-
-  const [card, setCard] = useState({
-    number: "",
-    expiry: "",
-    cvv: "",
   });
 
   useEffect(() => {
@@ -133,6 +82,30 @@ export default function Checkout() {
   const deliveryFee = 500;
   const serviceFee = 200;
   const total = subtotal + deliveryFee + serviceFee;
+
+  // Paystack config — must be in main component
+  const paystackConfig = {
+    reference: `ck_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    email: user?.email || "",
+    amount: total * 100, // kobo
+    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+    currency: "NGN",
+    metadata: {
+      custom_fields: [
+        { display_name: "App", variable_name: "app", value: "Chuks Kitchen" },
+      ],
+    },
+  };
+
+  const initializePayment = usePaystackPayment(paystackConfig);
+
+  const handlePaystackSuccess = async (reference) => {
+    await placeOrder(reference?.reference);
+  };
+
+  const handlePaystackClose = () => {
+    toast.error("Payment cancelled");
+  };
 
   const placeOrder = async (paystackReference) => {
     setPlacing(true);
@@ -226,7 +199,7 @@ export default function Checkout() {
         <div className="flex flex-col lg:flex-row gap-8 items-start">
           {/* Left — Step content */}
           <div className="flex-1 w-full">
-            {/* STEP 0 — Delivery Details */}
+            {/* STEP 0 — Delivery */}
             {step === 0 && (
               <div className="bg-white rounded-3xl shadow-sm p-8">
                 <div className="flex items-center gap-3 mb-8">
@@ -244,7 +217,6 @@ export default function Checkout() {
                 </div>
 
                 <div className="space-y-6">
-                  {/* Address */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">
                       Delivery Address
@@ -280,7 +252,6 @@ export default function Checkout() {
                     </div>
                   </div>
 
-                  {/* Delivery Time */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">
                       Delivery Time
@@ -302,7 +273,6 @@ export default function Checkout() {
                     </div>
                   </div>
 
-                  {/* Delivery Instructions */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">
                       Delivery Instructions{" "}
@@ -324,7 +294,6 @@ export default function Checkout() {
                     />
                   </div>
 
-                  {/* Phone */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">
                       Contact Number
@@ -353,6 +322,7 @@ export default function Checkout() {
               </div>
             )}
 
+            {/* STEP 1 — Payment */}
             {step === 1 && (
               <div className="bg-white rounded-3xl shadow-sm p-8">
                 <div className="flex items-center gap-3 mb-8">
@@ -369,7 +339,6 @@ export default function Checkout() {
                   </div>
                 </div>
 
-                {/* Pay With */}
                 <div className="mb-8">
                   <p className="text-sm font-bold text-gray-700 mb-3">
                     Pay With
@@ -408,35 +377,29 @@ export default function Checkout() {
                   </div>
                 </div>
 
-                {/* Paystack Payment */}
                 {payMethod === "card" && (
-                  <div className="space-y-5">
-                    <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-5">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-8 h-8 bg-blue-500 rounded-xl flex items-center justify-center">
-                          <Lock className="w-4 h-4 text-white" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-blue-800 text-sm">
-                            Secured by Paystack
-                          </p>
-                          <p className="text-blue-500 text-xs">
-                            Your payment is 100% secure
-                          </p>
-                        </div>
+                  <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-5 mb-6">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 bg-blue-500 rounded-xl flex items-center justify-center">
+                        <Lock className="w-4 h-4 text-white" />
                       </div>
-                      <p className="text-blue-600 text-sm leading-relaxed">
-                        You'll be redirected to Paystack's secure payment page
-                        to complete your payment of{" "}
-                        <span className="font-black">
-                          ₦{total.toLocaleString()}
-                        </span>
-                        .
-                      </p>
+                      <div>
+                        <p className="font-bold text-blue-800 text-sm">
+                          Secured by Paystack
+                        </p>
+                        <p className="text-blue-500 text-xs">
+                          Your payment is 100% secure
+                        </p>
+                      </div>
                     </div>
-
-                    {/* Accepted cards */}
-                    <div className="flex items-center gap-3">
+                    <p className="text-blue-600 text-sm leading-relaxed">
+                      Click "Review Order" then "Pay" to open Paystack's secure
+                      payment popup. Amount:{" "}
+                      <span className="font-black">
+                        ₦{total.toLocaleString()}
+                      </span>
+                    </p>
+                    <div className="flex items-center gap-3 mt-4">
                       <p className="text-xs text-gray-400 font-medium">
                         Accepted:
                       </p>
@@ -444,7 +407,7 @@ export default function Checkout() {
                         {["Visa", "Mastercard", "Verve"].map((card) => (
                           <span
                             key={card}
-                            className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-lg"
+                            className="bg-white text-gray-600 text-xs font-bold px-2.5 py-1 rounded-lg border border-gray-200"
                           >
                             {card}
                           </span>
@@ -455,7 +418,7 @@ export default function Checkout() {
                 )}
 
                 {payMethod === "bank" && (
-                  <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-6 text-center">
+                  <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-6 text-center mb-6">
                     <Building2 className="w-10 h-10 text-blue-400 mx-auto mb-3" />
                     <p className="text-blue-700 font-semibold">
                       Bank payment coming soon
@@ -467,7 +430,7 @@ export default function Checkout() {
                 )}
 
                 {payMethod === "transfer" && (
-                  <div className="bg-gray-50 border-2 border-gray-100 rounded-2xl p-6">
+                  <div className="bg-gray-50 border-2 border-gray-100 rounded-2xl p-6 mb-6">
                     <p className="text-sm font-bold text-gray-700 mb-4">
                       Transfer to this account:
                     </p>
@@ -504,12 +467,7 @@ export default function Checkout() {
                   </div>
                 )}
 
-                <p className="text-xs text-gray-400 mt-6 text-center leading-relaxed">
-                  🔒 Your personal data will be used to process your order and
-                  support your experience.
-                </p>
-
-                <div className="flex gap-3 mt-6">
+                <div className="flex gap-3">
                   <button
                     onClick={() => setStep(0)}
                     className="flex items-center gap-2 border-2 border-gray-100 bg-gray-50 hover:bg-gray-100 text-gray-600 font-bold py-4 px-6 rounded-2xl transition"
@@ -540,7 +498,7 @@ export default function Checkout() {
                       Review & Confirm
                     </h2>
                     <p className="text-gray-400 text-sm">
-                      Double check everything before placing
+                      Double check everything before paying
                     </p>
                   </div>
                 </div>
@@ -590,7 +548,7 @@ export default function Checkout() {
                   <p className="text-sm text-gray-500 flex items-center gap-2">
                     <CreditCard className="w-4 h-4 text-amber-400" />
                     {payMethod === "card"
-                      ? `Card ending in ${card.number.slice(-4) || "****"}`
+                      ? "Pay via Paystack (Card)"
                       : payMethod === "bank"
                         ? "Bank Payment"
                         : "Bank Transfer"}
@@ -605,6 +563,10 @@ export default function Checkout() {
                         src={item.meals.image_url}
                         alt={item.meals.name}
                         className="w-12 h-12 rounded-xl object-cover"
+                        onError={(e) => {
+                          e.target.src =
+                            "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=100";
+                        }}
                       />
                       <div className="flex-1">
                         <p className="font-semibold text-gray-800 text-sm">
@@ -629,13 +591,50 @@ export default function Checkout() {
                     <ChevronLeft className="w-5 h-5" />
                     Back
                   </button>
-                  <PayButton
-                    amount={total}
-                    email={user?.email}
-                    onSuccess={placeOrder}
-                    onClose={() => toast.error("Payment cancelled")}
-                    disabled={placing}
-                  />
+
+                  {/* Paystack Pay Button */}
+                  {payMethod === "card" ? (
+                    <button
+                      onClick={() => {
+                        initializePayment({
+                          onSuccess: handlePaystackSuccess,
+                          onClose: handlePaystackClose,
+                        });
+                      }}
+                      disabled={placing}
+                      className="flex-1 flex items-center justify-between bg-green-500 hover:bg-green-600 active:scale-[0.98] text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg shadow-green-100 disabled:opacity-60"
+                    >
+                      <div className="flex items-center gap-2">
+                        {placing ? (
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Lock className="w-4 h-4" />
+                        )}
+                        <span>
+                          {placing
+                            ? "Processing..."
+                            : `Pay ₦${total.toLocaleString()}`}
+                        </span>
+                      </div>
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => placeOrder(null)}
+                      disabled={placing}
+                      className="flex-1 flex items-center justify-between bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg shadow-amber-100 disabled:opacity-60"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Lock className="w-4 h-4" />
+                        <span>
+                          {placing
+                            ? "Placing Order..."
+                            : `Confirm Order ₦${total.toLocaleString()}`}
+                        </span>
+                      </div>
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -654,6 +653,10 @@ export default function Checkout() {
                       src={item.meals.image_url}
                       alt={item.meals.name}
                       className="w-12 h-12 rounded-xl object-cover shrink-0"
+                      onError={(e) => {
+                        e.target.src =
+                          "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=100";
+                      }}
                     />
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-gray-800 text-sm truncate">
@@ -699,9 +702,7 @@ export default function Checkout() {
           </div>
         </div>
       </div>
-
       <Footer />
-      <BackToTop />
     </div>
   );
 }
