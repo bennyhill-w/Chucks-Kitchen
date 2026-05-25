@@ -12,6 +12,7 @@ import {
   Lock,
   CheckCircle2,
 } from "lucide-react";
+import { usePaystackPayment } from "react-paystack";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
@@ -20,6 +21,48 @@ import BackToTop from "../components/BackToTop";
 import toast, { Toaster } from "react-hot-toast";
 
 const STEPS = ["Delivery", "Payment", "Confirm"];
+
+function PayButton({ amount, email, onSuccess, onClose, disabled }) {
+  const config = {
+    reference: `ck_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    email,
+    amount: amount * 100, // Paystack uses kobo
+    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+    currency: "NGN",
+    metadata: {
+      custom_fields: [
+        {
+          display_name: "App",
+          variable_name: "app",
+          value: "Chuks Kitchen",
+        },
+      ],
+    },
+  };
+
+  const initializePayment = usePaystackPayment(config);
+
+  return (
+    <button
+      onClick={() =>
+        initializePayment(
+          (reference) => onSuccess(reference?.reference),
+          onClose,
+        )
+      }
+      disabled={disabled}
+      className="flex-1 flex items-center justify-between bg-green-500 hover:bg-green-600 active:scale-[0.98] text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg shadow-green-100 disabled:opacity-60"
+    >
+      <div className="flex items-center gap-2">
+        <Lock className="w-4 h-4" />
+        <span>
+          {disabled ? "Processing..." : `Pay ₦${amount.toLocaleString()}`}
+        </span>
+      </div>
+      <ChevronRight className="w-5 h-5" />
+    </button>
+  );
+}
 
 export default function Checkout() {
   const { user } = useAuth();
@@ -30,6 +73,7 @@ export default function Checkout() {
   const [placing, setPlacing] = useState(false);
   const [payMethod, setPayMethod] = useState("card");
   const [saveCard, setSaveCard] = useState(false);
+  const [paymentVerified, setPaymentVerified] = useState(false);
 
   const [delivery, setDelivery] = useState({
     address: "123 Main Street, Victoria Island, Lagos",
@@ -90,7 +134,7 @@ export default function Checkout() {
   const serviceFee = 200;
   const total = subtotal + deliveryFee + serviceFee;
 
-  const placeOrder = async () => {
+  const placeOrder = async (paystackReference) => {
     setPlacing(true);
     const { data: order, error } = await supabase
       .from("orders")
@@ -101,6 +145,7 @@ export default function Checkout() {
         delivery_address: delivery.address,
         phone: delivery.phone,
         payment_method: payMethod,
+        payment_reference: paystackReference || null,
       })
       .select()
       .single();
@@ -308,7 +353,6 @@ export default function Checkout() {
               </div>
             )}
 
-            {/* STEP 1 — Payment */}
             {step === 1 && (
               <div className="bg-white rounded-3xl shadow-sm p-8">
                 <div className="flex items-center gap-3 mb-8">
@@ -364,88 +408,49 @@ export default function Checkout() {
                   </div>
                 </div>
 
-                {/* Card form */}
+                {/* Paystack Payment */}
                 {payMethod === "card" && (
                   <div className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-2">
-                        Card Number
-                      </label>
-                      <div className="relative">
-                        <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 w-5 h-5" />
-                        <input
-                          type="text"
-                          value={card.number}
-                          onChange={(e) =>
-                            setCard({ ...card, number: e.target.value })
-                          }
-                          placeholder="1234  5678  9101  1121"
-                          maxLength={19}
-                          className="w-full border-2 border-gray-100 bg-gray-50 rounded-2xl pl-12 pr-4 py-3.5 text-gray-700 font-mono font-semibold tracking-widest focus:outline-none focus:border-amber-400 focus:bg-white transition placeholder-gray-200 text-sm"
-                        />
+                    <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-5">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-8 h-8 bg-blue-500 rounded-xl flex items-center justify-center">
+                          <Lock className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-blue-800 text-sm">
+                            Secured by Paystack
+                          </p>
+                          <p className="text-blue-500 text-xs">
+                            Your payment is 100% secure
+                          </p>
+                        </div>
                       </div>
+                      <p className="text-blue-600 text-sm leading-relaxed">
+                        You'll be redirected to Paystack's secure payment page
+                        to complete your payment of{" "}
+                        <span className="font-black">
+                          ₦{total.toLocaleString()}
+                        </span>
+                        .
+                      </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">
-                          Expiration Date
-                        </label>
-                        <input
-                          type="text"
-                          value={card.expiry}
-                          onChange={(e) =>
-                            setCard({ ...card, expiry: e.target.value })
-                          }
-                          placeholder="MM/YY"
-                          maxLength={5}
-                          className="w-full border-2 border-gray-100 bg-gray-50 rounded-2xl px-4 py-3.5 text-gray-700 font-mono font-semibold focus:outline-none focus:border-amber-400 focus:bg-white transition placeholder-gray-200 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">
-                          CVV
-                        </label>
-                        <input
-                          type="password"
-                          value={card.cvv}
-                          onChange={(e) =>
-                            setCard({ ...card, cvv: e.target.value })
-                          }
-                          placeholder="•••"
-                          maxLength={3}
-                          className="w-full border-2 border-gray-100 bg-gray-50 rounded-2xl px-4 py-3.5 text-gray-700 font-mono font-semibold focus:outline-none focus:border-amber-400 focus:bg-white transition placeholder-gray-200 text-sm"
-                        />
-                      </div>
-                    </div>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div
-                        onClick={() => setSaveCard(!saveCard)}
-                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                          saveCard
-                            ? "border-amber-500 bg-amber-500"
-                            : "border-gray-300"
-                        }`}
-                      >
-                        {saveCard && (
-                          <svg
-                            className="w-3 h-3 text-white"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={3}
+
+                    {/* Accepted cards */}
+                    <div className="flex items-center gap-3">
+                      <p className="text-xs text-gray-400 font-medium">
+                        Accepted:
+                      </p>
+                      <div className="flex gap-2">
+                        {["Visa", "Mastercard", "Verve"].map((card) => (
+                          <span
+                            key={card}
+                            className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-lg"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                        )}
+                            {card}
+                          </span>
+                        ))}
                       </div>
-                      <span className="text-sm text-gray-500 font-medium">
-                        Save card details for next time
-                      </span>
-                    </label>
+                    </div>
                   </div>
                 )}
 
@@ -501,7 +506,7 @@ export default function Checkout() {
 
                 <p className="text-xs text-gray-400 mt-6 text-center leading-relaxed">
                   🔒 Your personal data will be used to process your order and
-                  support your experience throughout this website.
+                  support your experience.
                 </p>
 
                 <div className="flex gap-3 mt-6">
@@ -624,21 +629,13 @@ export default function Checkout() {
                     <ChevronLeft className="w-5 h-5" />
                     Back
                   </button>
-                  <button
-                    onClick={placeOrder}
+                  <PayButton
+                    amount={total}
+                    email={user?.email}
+                    onSuccess={placeOrder}
+                    onClose={() => toast.error("Payment cancelled")}
                     disabled={placing}
-                    className="flex-1 flex items-center justify-between bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg shadow-amber-100 disabled:opacity-60"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Lock className="w-4 h-4" />
-                      <span>
-                        {placing
-                          ? "Placing Order..."
-                          : `Pay ₦${total.toLocaleString()}`}
-                      </span>
-                    </div>
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
+                  />
                 </div>
               </div>
             )}
