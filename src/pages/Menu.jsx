@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import SEO from '../components/SEO';
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -242,6 +243,10 @@ export default function Menu() {
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
+      <SEO
+        title="Menu — Chuks Kitchen"
+        description="Explore our full menu of authentic Nigerian cuisine. Jollof rice, Egusi soup, Suya, Puff Puff and much more."
+      />
       <Toaster />
       <Navbar cartCount={cartCount} />
 

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import SEO from '../components/SEO';
 import { Link, useNavigate } from "react-router-dom";
 import {
   Search,
@@ -282,6 +283,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
+      <SEO
+        title="Home — Chuks Kitchen"
+        description="Browse our menu of authentic Nigerian dishes. Order jollof rice, soups, grills and more for delivery in Lagos."
+      />
       <Toaster />
 
       <style>{`

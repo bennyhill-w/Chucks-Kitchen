@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import SEO from '../components/SEO';
 import {
   UtensilsCrossed,
   Store,
@@ -109,6 +110,10 @@ export default function Landing() {
 
   return (
     <div className="flex flex-col min-h-screen bg-white overflow-x-hidden">
+      <SEO
+        title="Chuks Kitchen — Authentic Nigerian Food Delivery in Lagos"
+        description="Order authentic Nigerian food online. Jollof rice, Egusi soup, Suya and more delivered fresh to your door in Lagos. Fast delivery, great taste."
+      />
       {/* Inject keyframe animations */}
       <style>{`
         @keyframes fadeUp {

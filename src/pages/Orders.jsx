@@ -151,6 +151,28 @@ export default function Orders() {
     setLoadingItems(false);
   };
 
+  const cancelOrder = async (orderId, createdAt) => {
+    const minutesAgo = (Date.now() - new Date(createdAt).getTime()) / 1000 / 60;
+    if (minutesAgo > 5) {
+      toast.error('Orders can only be cancelled within 5 minutes of placing');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: 'cancelled' })
+      .eq('id', orderId);
+
+    if (error) {
+      toast.error('Failed to cancel order');
+      return;
+    }
+
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o));
+    if (selected?.id === orderId) setSelected(prev => ({ ...prev, status: 'cancelled' }));
+    toast.success('Order cancelled successfully');
+  };
+
   const openOrder = (order) => {
     setSelected(order);
     fetchOrderItems(order.id);
@@ -592,6 +614,18 @@ export default function Orders() {
                         Reorder
                       </button>
                     )}
+                    {['pending', 'preparing'].includes(selected.status) && (() => {
+                      const minutesAgo = (Date.now() - new Date(selected.created_at).getTime()) / 1000 / 60;
+                      return minutesAgo <= 5 ? (
+                        <button
+                          onClick={() => cancelOrder(selected.id, selected.created_at)}
+                          className="w-full flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 border-2 border-red-100 text-red-500 font-bold py-3 rounded-2xl transition text-sm"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Cancel Order
+                        </button>
+                      ) : null;
+                    })()}
                     <button className="w-full flex items-center justify-center gap-2 border-2 border-gray-100 bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold py-3 rounded-2xl transition text-sm">
                       <HelpCircle className="w-4 h-4" />
                       Need help with this order?

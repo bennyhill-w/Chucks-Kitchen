@@ -40,6 +40,16 @@ export default function Footer() {
               </Link>
             </li>
             <li>
+              <Link to="/privacy" className="hover:text-white">
+                Privacy Policy
+              </Link>
+            </li>
+            <li>
+              <Link to="/terms" className="hover:text-white">
+                Terms of Service
+              </Link>
+            </li>
+            <li>
               <a href="#" className="hover:text-white">
                 Contact
               </a>
